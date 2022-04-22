@@ -2,7 +2,6 @@ import json
 import logging as logging
 import time
 from datetime import timedelta
-from typing import List
 
 from resources import config
 from src.app_config import app_config
@@ -10,11 +9,10 @@ from src.constants import tickers
 from src.helper import formatter
 from src.helper.mk_data import av_crypto_helper
 from src.model.mk_data import MkData
-from src.strategy.impl.all_candlestick_patterns_strategy import AllCandleStickPatternsStrategy
+from src.model.single_ticker_portfolio import SingleTickerPortfolio
 from src.strategy.impl.mean_signal_strategy import MeanSignalStrategy
-from src.strategy.impl.ml_lstm_strategy import MlLstmStrategy
 from src.strategy.strategy import IStrategy
-from src.strategy_simulator.strategy_simulator_runner import StrategySimulatorRunner
+from src.strategy_simulator import strategy_simulator_helper
 
 log = logging.getLogger(__name__)
 
@@ -36,13 +34,11 @@ def run():
     interval = '1d'
     subset_data_length = 4
 
-    # simulator and strategy(s) set up
-    strategies: List[IStrategy] = [
-        # MlLstmStrategy(ticker, subset_data_length)
-        MeanSignalStrategy(subset_data_length),
-        # VWAPSignalStrategy(5),
-        # AllCandleStickPatternsStrategy()
-    ]
+    # strategy(s) set up
+    # strategy: IStrategy = MlLstmStrategy(ticker, subset_data_length)
+    strategy: IStrategy = MeanSignalStrategy(subset_data_length)
+    # strategy: IStrategy = VWAPSignalStrategy(5)
+    # strategy: IStrategy = AllCandleStickPatternsStrategy()
 
     # data preparation
     left_offset = timedelta(days=subset_data_length - 1)
@@ -50,10 +46,16 @@ def run():
     data = av_crypto_helper.download_daily_historical_data(ticker=ticker, _from=start_date_with_offset, to=end_date)
     mk_data = MkData(ticker, start_date, end_date, interval, data)
 
-    strategy_simulator_runner = StrategySimulatorRunner(mk_data)
-    for strategy in strategies:
-        performance = strategy_simulator_runner.run(strategy, subset_data_length)
-        log.info(f"{json.dumps(performance, indent=4)}")
+    # simulate strategy
+    strategy_result_portfolio: SingleTickerPortfolio = strategy_simulator_helper.run(mk_data, strategy, subset_data_length)
+
+    # use results
+    performance = strategy_simulator_helper.get_performance_statistics(strategy_result_portfolio, start_date, end_date)
+    log.info(f"{json.dumps(performance, indent=4)}")
+
+    # TODO [WIP][START] Get graphical result
+    strategy_simulator_helper.plot_strategy_vs_market_performance(mk_data, strategy_result_portfolio)
+    # TODO [WIP][END]
 
 
 if __name__ == "__main__":
