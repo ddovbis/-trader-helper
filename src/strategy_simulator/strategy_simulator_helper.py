@@ -1,8 +1,16 @@
-from src.constants import strategy_statistics_fields as ss_fields
+from collections import OrderedDict
+
+import matplotlib.pyplot as plt
+from pandas import Timestamp, DataFrame
+
+from resources import config
+from src.constants import statistics_fields as ss_fields
+from src.constants.mk_data_fields import MkDataFields
 from src.helper import formatter
 from src.helper.mk_data import av_crypto_helper
 from src.model.mk_data import MkData
 from src.model.single_ticker_portfolio import SingleTickerPortfolio
+from src.model.transaction_type import TransactionType
 from src.strategy.strategy import IStrategy
 from src.strategy_simulator.strategy_simulator import StrategySimulator
 
@@ -55,8 +63,96 @@ def get_performance_statistics(portfolio: SingleTickerPortfolio, start_date, end
     }
 
 
-def plot_strategy_vs_market_performance(self, mk_data: MkData, strategy_portfolio: SingleTickerPortfolio):
-    pass
+def plot_strategy_vs_market_performance(mk_data: MkData, strategy_portfolio: SingleTickerPortfolio):
+    """
+    Computes strategy portfolio value over time
+    Extracts the data points when BUY/SELL transactions took place
+    Computes buy&hold value over time for the same period
+    Plots all data above into a comparison diagram
+
+    :param mk_data: market data for the period when portfolio had been trading
+    :param strategy_portfolio: portfolio used to trade using the strategy
+    :return: does not return anything but pops up a new window with the plot
+    """
+
+    # make sure there is no offset data
+    data = mk_data.data.truncate(before=Timestamp(mk_data.start_date), after=Timestamp(mk_data.end_date))
+
+    # calculate value over time for both
+    portfolio_value_over_time = _get_portfolio_value_over_time(data, strategy_portfolio)
+    buy_and_hold_value_over_time = _get_buy_and_hold_value_over_time(data, strategy_portfolio.initial_cash)
+
+    # extract buy/sell data points to highlight them
+    buy_data_points = _get_data_points_by_transaction_type(strategy_portfolio.transactions, portfolio_value_over_time, TransactionType.BUY)
+    sell_data_points = _get_data_points_by_transaction_type(strategy_portfolio.transactions, portfolio_value_over_time, TransactionType.SELL)
+
+    # plot strategy portfolio data
+    plt.plot(portfolio_value_over_time.keys(), portfolio_value_over_time.values(), color='skyblue', label=config.STRATEGY_PORTFOLIO_LABEL)
+    plt.plot(buy_data_points.keys(), buy_data_points.values(), marker=".", color='red', linestyle='None', markersize=config.MARKER_SIZE, label=config.BUY_MARK_LABEL)
+    plt.plot(sell_data_points.keys(), sell_data_points.values(), marker=".", color='green', linestyle='None', markersize=config.MARKER_SIZE, label=config.SELL_MARK_LABEL)
+
+    # plot buy and hold data
+    plt.plot(buy_and_hold_value_over_time.keys(), buy_and_hold_value_over_time.values(), label=config.BUY_AND_HOLD_PORTFOLIO_LABEL)
+
+    # display plotted data
+    plt.legend()
+    plt.show()
+
+
+def _get_portfolio_value_over_time(data: DataFrame, strategy_portfolio: SingleTickerPortfolio) -> OrderedDict:
+    # get a map of key: Timestamp / value: Transaction
+    timestamp_to_transaction_dict = {transaction.timestamp: transaction for transaction in strategy_portfolio.transactions}
+
+    first_entry_processed = False
+    last_registered_transaction = None
+    result = OrderedDict()
+    for timestamp, row in data.iterrows():
+        if timestamp in timestamp_to_transaction_dict:
+            # calculate value based on the cash, and holdings found in the transaction's account summary
+            transaction = timestamp_to_transaction_dict[timestamp]
+            account_summary = transaction.statistics[ss_fields.ACCOUNT_SUMMARY]
+            portfolio_value = _get_portfolio_value_from_account_summary(account_summary, row[MkDataFields.CLOSE])
+            last_registered_transaction = transaction
+        else:
+            if first_entry_processed:
+                if not last_registered_transaction:
+                    # if no transactions have been found yet, there is still only initial cash in portfolio
+                    portfolio_value = next(reversed(result.values()))
+                else:
+                    # find out the holdings of the portfolio from the latest transaction and calculate value based on current price
+                    account_summary = last_registered_transaction.statistics[ss_fields.ACCOUNT_SUMMARY]
+                    portfolio_value = _get_portfolio_value_from_account_summary(account_summary, row[MkDataFields.CLOSE])
+            else:
+                # if first entry has not been processed yet, the portfolio value is initial cash
+                portfolio_value = strategy_portfolio.initial_cash
+                first_entry_processed = True
+
+        result[timestamp] = portfolio_value
+
+    return result
+
+
+def _get_portfolio_value_from_account_summary(account_summary, price):
+    cash = account_summary[ss_fields.CASH]
+    holdings = account_summary[ss_fields.HOLDINGS]
+    holdings_value = holdings * price
+    return cash + holdings_value
+
+
+def _get_buy_and_hold_value_over_time(data: DataFrame, initial_cash: float) -> OrderedDict:
+    holdings = initial_cash / data.iloc[0][MkDataFields.CLOSE]
+
+    result = OrderedDict()
+    for timestamp, row in data.iterrows():
+        portfolio_value = holdings * row[MkDataFields.CLOSE]
+        result[timestamp] = portfolio_value
+
+    return result
+
+
+def _get_data_points_by_transaction_type(transactions, portfolio_value_over_time, transaction_type):
+    transactions_timestamps = [transaction.timestamp for transaction in transactions if transaction.action_type is transaction_type]
+    return {timestamp: portfolio_value_over_time[timestamp] for timestamp in transactions_timestamps}
 
 
 def _get_buy_and_hold_value(ticker, initial_holdings_usd, start_date, end_date):

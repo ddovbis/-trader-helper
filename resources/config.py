@@ -15,3 +15,10 @@ SIMULATOR_TRANSACTIONS_FEE = 0.00
 
 # tensorflow configs
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+# plot configs
+MARKER_SIZE = 5
+STRATEGY_PORTFOLIO_LABEL = "Valoarea portfoliului strategiei"
+BUY_AND_HOLD_PORTFOLIO_LABEL = "Valoarea portfoliului a unicii procurări"
+BUY_MARK_LABEL = "Tranzacție de cumpărare"
+SELL_MARK_LABEL = "Tranzacție de vânzare"

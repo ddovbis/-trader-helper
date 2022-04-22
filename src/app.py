@@ -17,19 +17,14 @@ from src.strategy_simulator import strategy_simulator_helper
 log = logging.getLogger(__name__)
 
 
-# TODO 1. Graph for comparing market performance
-#    Resources
-#       Basis of plotting data: https://python-graph-gallery.com/basic-time-series-with-matplotlib
-#       How to add second line: https://www.geeksforgeeks.org/plot-multiple-lines-in-matplotlib/
+# TODO 1. Create input parameters for graph/text result, both, and for improving the Mean Strategy
 
-# TODO 2. Create input parameters for graph/text result, both, and for improving the Mean Strategy
-
-# TODO 3. Create logic (module) for running multiple simulations w/ mean strategy to get the best parameter
+# TODO 2. Create logic (module) for running multiple simulations w/ mean strategy to get the best parameter
 
 def run():
     # mkdata params
-    start_date = "2017-01-01"
-    end_date = "2021-12-31"
+    start_date = "2017-01-01"  # including
+    end_date = "2019-01-01"  # excluding
     ticker = tickers.BTC_USD
     interval = '1d'
     subset_data_length = 4
@@ -51,11 +46,9 @@ def run():
 
     # use results
     performance = strategy_simulator_helper.get_performance_statistics(strategy_result_portfolio, start_date, end_date)
-    log.info(f"{json.dumps(performance, indent=4)}")
-
-    # TODO [WIP][START] Get graphical result
+    formatted_performance_data = json.dumps(performance, indent=4)
+    log.info(f"{formatted_performance_data}")
     strategy_simulator_helper.plot_strategy_vs_market_performance(mk_data, strategy_result_portfolio)
-    # TODO [WIP][END]
 
 
 if __name__ == "__main__":

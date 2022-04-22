@@ -1,10 +1,13 @@
 import logging
 
+from src.constants import statistics_fields
 from src.model.transaction import Transaction
 from src.model.transaction_type import TransactionType
 
 
 class SingleTickerPortfolio:
+    ACCOUNT_SUMMARY = "Account summary"
+
     log = logging.getLogger(__name__)
 
     def __init__(self, ticker, initial_cash, transaction_fee_percent=0.00, log_transactions=False):
@@ -88,16 +91,16 @@ class SingleTickerPortfolio:
 
     def _get_transaction_statistics(self, details):
         result = {
-            "Account summary": self.get_summary()
+            statistics_fields.ACCOUNT_SUMMARY: self.get_summary()
         }
 
         if details:
-            result["Transaction details"] = details
+            result[statistics_fields.TRANSACTION_DETAILS] = details
 
         return result
 
     def get_summary(self):
         return {
-            "cash": self.cash,
-            "holdings": self.holdings,
+            statistics_fields.CASH: self.cash,
+            statistics_fields.HOLDINGS: self.holdings,
         }
