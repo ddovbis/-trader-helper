@@ -1,0 +1,2 @@
+class MkDataRequestError(RuntimeError):
+    pass

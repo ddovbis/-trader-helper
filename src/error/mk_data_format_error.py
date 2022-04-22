@@ -1,0 +1,2 @@
+class MkDataFormatError(RuntimeError):
+    pass

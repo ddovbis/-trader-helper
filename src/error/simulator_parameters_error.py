@@ -1,0 +1,2 @@
+class SimulatorParametersError(RuntimeError):
+    pass
