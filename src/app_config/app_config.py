@@ -1,11 +1,17 @@
 import logging
+import os
 
 import coloredlogs
 
+from resources import config
 
-def config():
+log = logging.getLogger(__name__)
+
+
+def configure_app():
     config_logger()
-    logging.info("App has been configured")
+    create_dirs()
+    log.info("App has been configured")
 
 
 def config_logger():
@@ -34,4 +40,15 @@ def config_logger():
         field_styles=field_styles
     )
 
-    logging.info("Logger has been configured")
+    log.info("Logger has been configured")
+
+
+def create_dirs():
+    dirs = [config.LSTM_MODELS_PATH, config.ERRORS_DIR]
+
+    for _dir in dirs:
+        if not os.path.exists(_dir):
+            log.info(f"Create dir: {_dir}")
+            os.makedirs(_dir)
+
+    log.info(f"All necessary dirs have been created")

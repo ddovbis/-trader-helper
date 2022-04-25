@@ -36,7 +36,7 @@ def run():
 
 if __name__ == "__main__":
     start = time.time()
-    app_config.config()
+    app_config.configure_app()
     log.info("App initialized")
     run()
     log.info(f"App ran for: {time.time() - start} s")

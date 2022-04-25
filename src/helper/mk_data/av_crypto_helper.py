@@ -1,3 +1,5 @@
+import logging
+import time
 from datetime import timedelta
 from io import StringIO
 
@@ -6,12 +8,15 @@ import requests
 from pandas import DataFrame, Timestamp, Timedelta
 from requests import Response
 
+from resources import config
 from resources.config import ALPHA_VANTAGE_BASE_URL, ALPHA_VANTAGE_API_KEY, GENERAL_DATE_FORMAT
 from src.constants.mk_data_fields import MkDataFields
 from src.error.mk_data_format_error import MkDataFormatError
 from src.error.mk_data_request_error import MkDataRequestError
 from src.helper import formatter
 from src.model.single_ticker_portfolio import SingleTickerPortfolio
+
+log = logging.getLogger(__name__)
 
 
 def get_portfolio_value(portfolio: SingleTickerPortfolio, asof: str = None) -> float:
@@ -68,13 +73,32 @@ def download_daily_historical_data(ticker, _from: str = None, to: str = None) ->
 
     output_size = _get_req_output_size(start_date, end_date_including)
     params = _get_av_daily_historical_data_params(ticker, output_size)
-    response: Response = _send_request_with_check(ALPHA_VANTAGE_BASE_URL, params)
 
-    df = _av_csv_text_to_df(response.text)
+    response_text = _request_mk_data_with_retry(params)
+
+    df = _av_csv_text_to_df(response_text)
     _validate_timeframe(df, start_date, end_date_including)
     df = _get_slice(df, start_date, end_date_including)
 
     return df
+
+
+def _request_mk_data_with_retry(params):
+    for i in range(0, config.ALPHA_VANTAGE_MAX_RETRY):
+        response: Response = _send_request_with_check(ALPHA_VANTAGE_BASE_URL, params)
+        response_text = response.text
+        if response_text.strip() == config.ALPHA_VANTAGE_REACHED_LIMIT_ERROR_MSG.strip():
+            log.info(f"Reached api-key limit of requesting Market Data on try {i + 1} out of {config.ALPHA_VANTAGE_MAX_RETRY}")
+            if i < config.ALPHA_VANTAGE_MAX_RETRY - 1:
+                log.info(f"Sleep {config.ALPHA_VANTAGE_WAIT_SECONDS_BEFORE_RETRY} seconds before retry...")
+                time.sleep(config.ALPHA_VANTAGE_WAIT_SECONDS_BEFORE_RETRY)
+                continue
+            else:
+                raise MkDataRequestError("Reached limit of retries to request market data")
+        else:
+            return response_text
+
+    raise MkDataRequestError("Could not get proper response for market data request")
 
 
 def _get_req_output_size(start_date: pd.Timestamp, end_date: pd.Timestamp):
@@ -108,20 +132,23 @@ def _send_request_with_check(base_url, params):
 
 
 def _av_csv_text_to_df(raw_csv_text):
-    raw_data = StringIO(raw_csv_text)
-    df = pd.read_csv(raw_data, parse_dates=['timestamp'], index_col='timestamp') \
-        .sort_index() \
-        .rename(
-        columns={
-            "open": MkDataFields.OPEN,
-            "high": MkDataFields.HIGH,
-            "low": MkDataFields.LOW,
-            "close": MkDataFields.CLOSE,
-            "volume": MkDataFields.VOLUME
-        }
-    )
-    df.index.names = [MkDataFields.TIMESTAMP]
-    return df
+    try:
+        raw_data = StringIO(raw_csv_text)
+        df = pd.read_csv(raw_data, parse_dates=['timestamp'], index_col='timestamp') \
+            .sort_index() \
+            .rename(
+            columns={
+                "open": MkDataFields.OPEN,
+                "high": MkDataFields.HIGH,
+                "low": MkDataFields.LOW,
+                "close": MkDataFields.CLOSE,
+                "volume": MkDataFields.VOLUME
+            }
+        )
+        df.index.names = [MkDataFields.TIMESTAMP]
+        return df
+    except ValueError:
+        raise MkDataFormatError(content=raw_csv_text, save_to_file=True)
 
 
 def _validate_timeframe(data: DataFrame, start_date: Timestamp, end_date: Timestamp) -> None:
