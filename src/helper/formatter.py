@@ -12,6 +12,13 @@ def obj_to_str(obj, exclude: list = []):
     return f"{type(obj).__name__}({', '.join(obj_var_values)})"
 
 
+def get_timedelta(units, interval):
+    if interval == "1d":
+        return timedelta(days=units)
+    else:
+        raise NotImplementedError()
+
+
 def add_time_to_str_date(date: str, date_format: str, to_add: timedelta) -> str:
     """
     Converts string date into a date format

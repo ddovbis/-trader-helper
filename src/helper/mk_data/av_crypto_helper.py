@@ -14,28 +14,8 @@ from src.constants.mk_data_fields import MkDataFields
 from src.error.mk_data_format_error import MkDataFormatError
 from src.error.mk_data_request_error import MkDataRequestError
 from src.helper import formatter
-from src.model.single_ticker_portfolio import SingleTickerPortfolio
 
 log = logging.getLogger(__name__)
-
-
-def get_portfolio_value(portfolio: SingleTickerPortfolio, asof: str = None) -> float:
-    """
-    Calculates portfolio value summing up the cash and holdings
-    :param portfolio: portfolio that holds ticker amounts and cash
-    :param asof: date for which to calculate the value, if not provided "today" date will be used
-    :return: value of the portfolio
-    """
-    total_value = portfolio.cash
-    if portfolio.holdings > 0:
-        if asof:
-            price = get_historical_price(portfolio.ticker, asof)
-        else:
-            raise NotImplemented("Quoting current price is not implemented yet")
-
-        total_value += (portfolio.holdings * price)
-
-    return total_value
 
 
 def get_historical_price(ticker, asof):
@@ -88,7 +68,7 @@ def _request_mk_data_with_retry(params):
         response: Response = _send_request_with_check(ALPHA_VANTAGE_BASE_URL, params)
         response_text = response.text
         if response_text.strip() == config.ALPHA_VANTAGE_REACHED_LIMIT_ERROR_MSG.strip():
-            log.info(f"Reached api-key limit of requesting Market Data on try {i + 1} out of {config.ALPHA_VANTAGE_MAX_RETRY}")
+            log.info(f"Reached api-key limit of requesting Market Data (try {i + 1} out of {config.ALPHA_VANTAGE_MAX_RETRY})")
             if i < config.ALPHA_VANTAGE_MAX_RETRY - 1:
                 log.info(f"Sleep {config.ALPHA_VANTAGE_WAIT_SECONDS_BEFORE_RETRY} seconds before retry...")
                 time.sleep(config.ALPHA_VANTAGE_WAIT_SECONDS_BEFORE_RETRY)

@@ -12,10 +12,8 @@ from src.strategy.strategy import IStrategy
 class StrategySimulator:
     log = logging.getLogger(__name__)
 
-    def __init__(self):
-        self.initial_holdings_usd = 100
-
-    def simulate(self, mk_data: MkData, subset_data_length: int, strategy: IStrategy) -> SingleTickerPortfolio:
+    @staticmethod
+    def simulate(mk_data: MkData, subset_data_length: int, strategy: IStrategy) -> SingleTickerPortfolio:
         """
         Simulates applying a trend strategy on historical data
         :param mk_data: historical data to use
@@ -28,8 +26,7 @@ class StrategySimulator:
         if subset_data_length > data_length:
             raise SimulatorParametersError(f"Mk data length[{data_length}] is smaller than target subset data length[{subset_data_length}]!")
 
-        portfolio = SingleTickerPortfolio(mk_data.ticker, self.initial_holdings_usd, config.SIMULATOR_TRANSACTIONS_FEE,
-                                          config.SIMULATOR_LOG_TRANSACTIONS)
+        portfolio = SingleTickerPortfolio(mk_data.ticker, config.SIMULATOR_INITIAL_CASH, config.SIMULATOR_TRANSACTIONS_FEE, config.SIMULATOR_LOG_TRANSACTIONS)
 
         for start_index in range(0, data_length):
             if start_index > data_length - subset_data_length:

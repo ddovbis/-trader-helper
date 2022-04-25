@@ -14,20 +14,60 @@ from src.model.mk_data import MkData
 from src.model.performance_statistics import PerformanceStatistics
 from src.model.single_ticker_portfolio import SingleTickerPortfolio
 from src.model.transaction_type import TransactionType
+from src.strategy import strategy_factory
 from src.strategy.strategy import IStrategy
 from src.strategy_simulator.strategy_simulator import StrategySimulator
 
 log = logging.getLogger(__name__)
 
 
+# [IMPROVEMENT] make offset possible for other intervals than 1d
 def prepare_simulation_mk_data(ticker, subset_data_length, start_date, end_date, interval):
-    left_offset = timedelta(days=subset_data_length - 1)
+    left_offset = formatter.get_timedelta(subset_data_length - 1, interval)  # get extra data for making decision for the first entry
     start_date_with_offset = formatter.extract_time_from_str_date(start_date, config.GENERAL_DATE_FORMAT, left_offset)
-    data = av_crypto_helper.download_daily_historical_data(ticker=ticker, _from=start_date_with_offset, to=end_date)
+
+    right_offset = formatter.get_timedelta(1, interval)  # make sure end_date is included into data
+    end_date_with_offset = formatter.add_time_to_str_date(end_date, config.GENERAL_DATE_FORMAT, right_offset)
+
+    data = av_crypto_helper.download_daily_historical_data(ticker=ticker, _from=start_date_with_offset, to=end_date_with_offset)
     return MkData(ticker, start_date, end_date, interval, data)
 
 
-def run_simulation(mk_data, subset_data_length, strategy, print_performance_results, plot_value_over_time):
+def get_strategy_performances_by_subset_data_length(min_subset_data_length, max_subset_data_length, mk_data: MkData, strategy_type):
+    orig_data = mk_data.data
+
+    result = OrderedDict()
+    for subset_data_length in range(min_subset_data_length, max_subset_data_length + 1):
+        # truncate mk_data up to subset_data_length
+        left_offset = timedelta(days=subset_data_length - 1)
+        start_date_with_offset = formatter.extract_time_from_str_date(mk_data.start_date, config.GENERAL_DATE_FORMAT, left_offset)
+        mk_data.data = orig_data.truncate(before=Timestamp(start_date_with_offset))
+
+        # get performance for this data length
+        strategy = strategy_factory.get_concrete_strategy(strategy_type, mk_data.ticker, subset_data_length)
+        strategy_portfolio = simulate(mk_data, strategy, subset_data_length)
+        strategy_performance = _get_strategy_performance(mk_data, strategy_portfolio)
+        result[subset_data_length] = strategy_performance
+
+        if len(result) % 10 == 0:
+            log.info(f"Processed strategy simulations: {len(result)}")
+
+    log.info(f"Processed all strategy simulations: {len(result)}")
+    return result
+
+
+def get_strategy_over_market_performances(strategy_performances_by_subset_data_length: dict, mk_data: MkData, initial_cash):
+    market_performance = _get_market_performance_from_data(mk_data, initial_cash)
+
+    result = OrderedDict()
+    for subset_data_length, strategy_performance in strategy_performances_by_subset_data_length.items():
+        over_market_performance = strategy_performance - market_performance
+        result[subset_data_length] = over_market_performance
+
+    return result
+
+
+def show_strategy_performance(mk_data, subset_data_length, strategy, print_performance_results, plot_value_over_time):
     """
     Runs simulation and outputs appropriate results based on the parameters
     :param mk_data: market data over which should the simulation to be run
@@ -42,19 +82,19 @@ def run_simulation(mk_data, subset_data_length, strategy, print_performance_resu
         return
 
     # simulate strategy
-    strategy_result_portfolio: SingleTickerPortfolio = _simulate(mk_data, strategy, subset_data_length)
+    strategy_result_portfolio: SingleTickerPortfolio = simulate(mk_data, strategy, subset_data_length)
 
     # use results
     if print_performance_results:
-        performance = get_performance_statistics(strategy.get_name(), strategy_result_portfolio, mk_data.start_date, mk_data.end_date)
+        performance = get_performance_statistics(strategy.get_name(), strategy_result_portfolio, mk_data)
         log.info(f"{performance}")
     if plot_value_over_time:
         plot_strategy_vs_market_performance(mk_data, strategy_result_portfolio)
 
 
-def _simulate(mk_data: MkData, strategy: IStrategy, subset_data_length) -> SingleTickerPortfolio:
+def simulate(mk_data: MkData, strategy: IStrategy, subset_data_length) -> SingleTickerPortfolio:
     """
-    Runs given strategy on the appropriate simulator, using self.mkdata
+    Runs given strategy on the appropriate simulator
     :param mk_data: market data to use for simulations
     :param strategy: strategy to run
     :param subset_data_length: nr. of previous, historical data-points to give to the strategy to
@@ -66,40 +106,60 @@ def _simulate(mk_data: MkData, strategy: IStrategy, subset_data_length) -> Singl
     return simulator.simulate(mk_data, subset_data_length, strategy)
 
 
-def get_performance_statistics(strategy_name: str, portfolio: SingleTickerPortfolio, start_date, end_date):
+def get_performance_statistics(strategy_name: str, portfolio: SingleTickerPortfolio, mk_data):
     """
-    Generates statistics:
-        - Strategy performance - % of final gains, comparing to the initial cash amount
-        - Market performance - % of total gains over the initial amount, if the ticker
-            would be bought at the first data point and sold at the last one
-        - Strategy vs. Market performance - % of the difference between first two
+    Generates statistics with details about how the strategy performed
     :param strategy_name: name of the strategy that has been applied
-    :param end_date: timestamp when transacting started
-    :param start_date: timestamp when transacting ended
     :param portfolio: portfolio containing ticker, and final cash and holdings information
-    :return: statistics generated as a dict of statistics type -> value
+    :param mk_data: market data that has been used for simulating the transactions
+    :return: PerformanceStatistics
     """
-    market_end_value = _get_buy_and_hold_value(portfolio.ticker, portfolio.initial_cash, start_date, end_date)
-    market_performance = (market_end_value - portfolio.initial_cash) * 100 / portfolio.initial_cash
-    formatted_buy_n_hold_performance = formatter.format_percentage(market_performance)
-
-    strategy_end_value = av_crypto_helper.get_portfolio_value(portfolio, end_date)
-    strategy_performance = (strategy_end_value - portfolio.initial_cash) * 100 / portfolio.initial_cash
-    formatted_strategy_performance = formatter.format_percentage(strategy_performance)
-
+    market_performance = _get_market_performance_from_data(mk_data, portfolio.initial_cash)
+    strategy_performance = _get_strategy_performance(mk_data, portfolio)
     strategy_vs_market_performance = strategy_performance - market_performance
-    formatted_strategy_vs_market_performance = formatter.format_percentage(strategy_vs_market_performance)
-
-    formatted_paid_fees = formatter.format_currency_value(portfolio.paid_fees)
 
     return PerformanceStatistics(
         strategy_name=strategy_name,
-        strategy_performance=formatted_strategy_performance,
-        market_performance=formatted_buy_n_hold_performance,
-        strategy_vs_market_performance=formatted_strategy_vs_market_performance,
+        strategy_performance=strategy_performance,
+        market_performance=market_performance,
+        strategy_vs_market_performance=strategy_vs_market_performance,
         nr_of_transactions=len(portfolio.transactions),
-        paid_fees=formatted_paid_fees
+        paid_fees=portfolio.paid_fees
     )
+
+
+def _get_market_performance_from_data(mk_data: MkData, initial_cash):
+    market_end_value = _get_buy_and_hold_value(mk_data, initial_cash)
+    return (market_end_value - initial_cash) * 100 / initial_cash
+
+
+def _get_buy_and_hold_value(mk_data: MkData, initial_cash):
+    buy_at = mk_data.data.loc[Timestamp(mk_data.start_date)][MkDataFields.CLOSE]
+    sell_at = mk_data.data.loc[Timestamp(mk_data.end_date)][MkDataFields.CLOSE]
+    return (initial_cash / buy_at) * sell_at
+
+
+def _get_strategy_performance(mk_data: MkData, portfolio):
+    strategy_end_value = portfolio.cash
+    if portfolio.holdings > 0:
+        sell_at = mk_data.data.loc[Timestamp(mk_data.end_date)][MkDataFields.CLOSE]
+        strategy_end_value += (portfolio.holdings * sell_at)
+
+    return (strategy_end_value - portfolio.initial_cash) * 100 / portfolio.initial_cash
+
+
+def plot_performance_of_data_lengths(strategy_performances_by_subset_data_length: dict):
+    """
+    Plots strategy performances for each subset data length
+    :param strategy_performances_by_subset_data_length: dict with key: subset data length -> value: performance
+    :return: does not return anything but pops up a new window with the plot
+    """
+    plt.bar(strategy_performances_by_subset_data_length.keys(), strategy_performances_by_subset_data_length.values())
+
+    plt.xlabel(config.PERF_BY_SUBSET_DATA_LENGTH_X_LABEL)
+    plt.ylabel(config.PERF_BY_SUBSET_DATA_LENGTH_Y_LABEL)
+
+    plt.show()
 
 
 def plot_strategy_vs_market_performance(mk_data: MkData, strategy_portfolio: SingleTickerPortfolio):
@@ -126,15 +186,21 @@ def plot_strategy_vs_market_performance(mk_data: MkData, strategy_portfolio: Sin
     sell_data_points = _get_data_points_by_transaction_type(strategy_portfolio.transactions, portfolio_value_over_time, TransactionType.SELL)
 
     # plot strategy portfolio data
-    plt.plot(portfolio_value_over_time.keys(), portfolio_value_over_time.values(), color='skyblue', label=config.STRATEGY_PORTFOLIO_LABEL)
-    plt.plot(buy_data_points.keys(), buy_data_points.values(), marker=".", color='red', linestyle='None', markersize=config.MARKER_SIZE, label=config.BUY_MARK_LABEL)
-    plt.plot(sell_data_points.keys(), sell_data_points.values(), marker=".", color='green', linestyle='None', markersize=config.MARKER_SIZE, label=config.SELL_MARK_LABEL)
+    plt.plot(portfolio_value_over_time.keys(), portfolio_value_over_time.values(), color='skyblue', label=config.STRATEGY_SIMULATION_STRATEGY_PORTFOLIO_LABEL)
+    plt.plot(buy_data_points.keys(), buy_data_points.values(), marker=".", color='red', linestyle='None', markersize=config.STRATEGY_SIMULATION_MARKER_SIZE,
+             label=config.STRATEGY_SIMULATION_BUY_MARK_LABEL)
+    plt.plot(sell_data_points.keys(), sell_data_points.values(), marker=".", color='green', linestyle='None', markersize=config.STRATEGY_SIMULATION_MARKER_SIZE,
+             label=config.STRATEGY_SIMULATION_SELL_MARK_LABEL)
 
     # plot buy and hold data
-    plt.plot(buy_and_hold_value_over_time.keys(), buy_and_hold_value_over_time.values(), label=config.BUY_AND_HOLD_PORTFOLIO_LABEL)
+    plt.plot(buy_and_hold_value_over_time.keys(), buy_and_hold_value_over_time.values(), label=config.STRATEGY_SIMULATION_BUY_AND_HOLD_PORTFOLIO_LABEL)
+
+    # plot explanations
+    plt.xlabel(config.STRATEGY_SIMULATION_X_LABEL)
+    plt.ylabel(config.STRATEGY_SIMULATION_Y_LABEL)
+    plt.legend()
 
     # display plotted data
-    plt.legend()
     plt.show()
 
 
@@ -192,12 +258,6 @@ def _get_buy_and_hold_value_over_time(data: DataFrame, initial_cash: float) -> O
 def _get_data_points_by_transaction_type(transactions, portfolio_value_over_time, transaction_type):
     transactions_timestamps = [transaction.timestamp for transaction in transactions if transaction.action_type is transaction_type]
     return {timestamp: portfolio_value_over_time[timestamp] for timestamp in transactions_timestamps}
-
-
-def _get_buy_and_hold_value(ticker, initial_holdings_usd, start_date, end_date):
-    buy_at = av_crypto_helper.get_historical_price(ticker, start_date)
-    sell_at = av_crypto_helper.get_historical_price(ticker, end_date)
-    return (initial_holdings_usd / buy_at) * sell_at
 
 
 def _get_performance_summary(self, strategy, performance_statistics):

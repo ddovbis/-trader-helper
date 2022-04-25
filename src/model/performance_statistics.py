@@ -2,6 +2,7 @@ import json
 from collections import OrderedDict
 
 from src.constants import statistics_fields
+from src.helper import formatter
 
 
 class PerformanceStatistics:
@@ -16,10 +17,10 @@ class PerformanceStatistics:
     def __str__(self) -> str:
         dict_form = OrderedDict({
             statistics_fields.STRATEGY_NAME: self.strategy_name,
-            statistics_fields.STRATEGY_PERFORMANCE: self.strategy_performance,
-            statistics_fields.MARKET_PERFORMANCE: self.market_performance,
-            statistics_fields.STRATEGY_VS_MARKET_PERFORMANCE: self.strategy_vs_market_performance,
+            statistics_fields.STRATEGY_PERFORMANCE: formatter.format_percentage(self.strategy_performance),
+            statistics_fields.MARKET_PERFORMANCE: formatter.format_percentage(self.market_performance),
+            statistics_fields.STRATEGY_VS_MARKET_PERFORMANCE: formatter.format_percentage(self.strategy_vs_market_performance),
             statistics_fields.NR_OF_TRANSACTIONS: self.nr_of_transactions,
-            statistics_fields.PAID_FEES: self.paid_fees
+            statistics_fields.PAID_FEES: formatter.format_currency_value(self.paid_fees)
         })
         return json.dumps(dict_form, indent=4)
