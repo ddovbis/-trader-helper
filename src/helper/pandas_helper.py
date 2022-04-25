@@ -13,3 +13,7 @@ def get_data_subset(data: DataFrame, index_start: int, index_end: int = None) ->
         index_end = len(data)
 
     return data.iloc[index_start:index_end]
+
+
+def get_last_value(data: DataFrame, column_name: str):
+    return data[column_name].iloc[-1]

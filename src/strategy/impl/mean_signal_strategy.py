@@ -4,7 +4,6 @@ from pandas import DataFrame
 
 from src.constants.mk_data_fields import MkDataFields
 from src.helper import pandas_helper
-from src.helper.mk_data import yf_helper
 from src.model.transaction_type import TransactionType
 from src.strategy.strategy import IStrategy
 
@@ -29,7 +28,7 @@ class MeanSignalStrategy(IStrategy):
 
         data = pandas_helper.get_data_subset(data, index_start=len(data) - self.mean_period)
         mean_price = data[MkDataFields.CLOSE].mean()
-        last_price = yf_helper.get_last_close_price(data)
+        last_price = pandas_helper.get_last_value(data, MkDataFields.CLOSE)
         if last_price > mean_price:
             return TransactionType.BUY, {}
         elif last_price < mean_price:
