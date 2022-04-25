@@ -1,4 +1,5 @@
 STRATEGY = "Strategy"
+STRATEGY_NAME = "Strategy name"
 START_DATE = "Start date"
 END_DATE = "End date"
 PERFORMANCE = "Performance"

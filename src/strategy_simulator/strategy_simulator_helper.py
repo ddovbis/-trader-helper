@@ -1,4 +1,3 @@
-import json
 import logging
 from collections import OrderedDict
 from datetime import timedelta
@@ -7,11 +6,12 @@ import matplotlib.pyplot as plt
 from pandas import Timestamp, DataFrame
 
 from resources import config
-from src.constants import statistics_fields as ss_fields
+from src.constants import statistics_fields
 from src.constants.mk_data_fields import MkDataFields
 from src.helper import formatter
 from src.helper.mk_data import av_crypto_helper
 from src.model.mk_data import MkData
+from src.model.performance_statistics import PerformanceStatistics
 from src.model.single_ticker_portfolio import SingleTickerPortfolio
 from src.model.transaction_type import TransactionType
 from src.strategy.strategy import IStrategy
@@ -46,9 +46,8 @@ def run_simulation(mk_data, subset_data_length, strategy, print_performance_resu
 
     # use results
     if print_performance_results:
-        performance = get_performance_statistics(strategy_result_portfolio, mk_data.start_date, mk_data.end_date)
-        formatted_performance_data = json.dumps(performance, indent=4)
-        log.info(f"{formatted_performance_data}")
+        performance = get_performance_statistics(strategy.get_name(), strategy_result_portfolio, mk_data.start_date, mk_data.end_date)
+        log.info(f"{performance}")
     if plot_value_over_time:
         plot_strategy_vs_market_performance(mk_data, strategy_result_portfolio)
 
@@ -67,13 +66,14 @@ def _simulate(mk_data: MkData, strategy: IStrategy, subset_data_length) -> Singl
     return simulator.simulate(mk_data, subset_data_length, strategy)
 
 
-def get_performance_statistics(portfolio: SingleTickerPortfolio, start_date, end_date):
+def get_performance_statistics(strategy_name: str, portfolio: SingleTickerPortfolio, start_date, end_date):
     """
     Generates statistics:
         - Strategy performance - % of final gains, comparing to the initial cash amount
         - Market performance - % of total gains over the initial amount, if the ticker
             would be bought at the first data point and sold at the last one
         - Strategy vs. Market performance - % of the difference between first two
+    :param strategy_name: name of the strategy that has been applied
     :param end_date: timestamp when transacting started
     :param start_date: timestamp when transacting ended
     :param portfolio: portfolio containing ticker, and final cash and holdings information
@@ -92,13 +92,14 @@ def get_performance_statistics(portfolio: SingleTickerPortfolio, start_date, end
 
     formatted_paid_fees = formatter.format_currency_value(portfolio.paid_fees)
 
-    return {
-        ss_fields.STRATEGY_PERFORMANCE: formatted_strategy_performance,
-        ss_fields.MARKET_PERFORMANCE: formatted_buy_n_hold_performance,
-        ss_fields.STRATEGY_VS_MARKET_PERFORMANCE: formatted_strategy_vs_market_performance,
-        ss_fields.NR_OF_TRANSACTIONS: len(portfolio.transactions),
-        ss_fields.PAID_FEES: formatted_paid_fees
-    }
+    return PerformanceStatistics(
+        strategy_name=strategy_name,
+        strategy_performance=formatted_strategy_performance,
+        market_performance=formatted_buy_n_hold_performance,
+        strategy_vs_market_performance=formatted_strategy_vs_market_performance,
+        nr_of_transactions=len(portfolio.transactions),
+        paid_fees=formatted_paid_fees
+    )
 
 
 def plot_strategy_vs_market_performance(mk_data: MkData, strategy_portfolio: SingleTickerPortfolio):
@@ -148,7 +149,7 @@ def _get_portfolio_value_over_time(data: DataFrame, strategy_portfolio: SingleTi
         if timestamp in timestamp_to_transaction_dict:
             # calculate value based on the cash, and holdings found in the transaction's account summary
             transaction = timestamp_to_transaction_dict[timestamp]
-            account_summary = transaction.statistics[ss_fields.ACCOUNT_SUMMARY]
+            account_summary = transaction.statistics[statistics_fields.ACCOUNT_SUMMARY]
             portfolio_value = _get_portfolio_value_from_account_summary(account_summary, row[MkDataFields.CLOSE])
             last_registered_transaction = transaction
         else:
@@ -158,7 +159,7 @@ def _get_portfolio_value_over_time(data: DataFrame, strategy_portfolio: SingleTi
                     portfolio_value = next(reversed(result.values()))
                 else:
                     # find out the holdings of the portfolio from the latest transaction and calculate value based on current price
-                    account_summary = last_registered_transaction.statistics[ss_fields.ACCOUNT_SUMMARY]
+                    account_summary = last_registered_transaction.statistics[statistics_fields.ACCOUNT_SUMMARY]
                     portfolio_value = _get_portfolio_value_from_account_summary(account_summary, row[MkDataFields.CLOSE])
             else:
                 # if first entry has not been processed yet, the portfolio value is initial cash
@@ -171,8 +172,8 @@ def _get_portfolio_value_over_time(data: DataFrame, strategy_portfolio: SingleTi
 
 
 def _get_portfolio_value_from_account_summary(account_summary, price):
-    cash = account_summary[ss_fields.CASH]
-    holdings = account_summary[ss_fields.HOLDINGS]
+    cash = account_summary[statistics_fields.CASH]
+    holdings = account_summary[statistics_fields.HOLDINGS]
     holdings_value = holdings * price
     return cash + holdings_value
 
@@ -201,8 +202,8 @@ def _get_buy_and_hold_value(ticker, initial_holdings_usd, start_date, end_date):
 
 def _get_performance_summary(self, strategy, performance_statistics):
     return {
-        ss_fields.STRATEGY: strategy.get_name(),
-        ss_fields.START_DATE: self.mk_data.start_date,
-        ss_fields.END_DATE: self.mk_data.end_date,
-        ss_fields.PERFORMANCE: performance_statistics
+        statistics_fields.STRATEGY: strategy.get_name(),
+        statistics_fields.START_DATE: self.mk_data.start_date,
+        statistics_fields.END_DATE: self.mk_data.end_date,
+        statistics_fields.PERFORMANCE: performance_statistics
     }
