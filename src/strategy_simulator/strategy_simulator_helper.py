@@ -1,4 +1,7 @@
+import json
+import logging
 from collections import OrderedDict
+from datetime import timedelta
 
 import matplotlib.pyplot as plt
 from pandas import Timestamp, DataFrame
@@ -14,8 +17,43 @@ from src.model.transaction_type import TransactionType
 from src.strategy.strategy import IStrategy
 from src.strategy_simulator.strategy_simulator import StrategySimulator
 
+log = logging.getLogger(__name__)
 
-def run(mk_data: MkData, strategy: IStrategy, subset_data_length) -> SingleTickerPortfolio:
+
+def prepare_simulation_mk_data(ticker, subset_data_length, start_date, end_date, interval):
+    left_offset = timedelta(days=subset_data_length - 1)
+    start_date_with_offset = formatter.extract_time_from_str_date(start_date, config.GENERAL_DATE_FORMAT, left_offset)
+    data = av_crypto_helper.download_daily_historical_data(ticker=ticker, _from=start_date_with_offset, to=end_date)
+    return MkData(ticker, start_date, end_date, interval, data)
+
+
+def run_simulation(mk_data, subset_data_length, strategy, print_performance_results, plot_value_over_time):
+    """
+    Runs simulation and outputs appropriate results based on the parameters
+    :param mk_data: market data over which should the simulation to be run
+    :param subset_data_length: how many historical mk_data entry points should be used for each transaction decision
+    :param strategy: strategy that needs to be applied to decide what type of transaction should be made for each step
+    :param print_performance_results: parameter, if enabled strategy performance results will be logged
+    :param plot_value_over_time: parameter, if enabled value over time will be plotted for both strategy results, and buy&hold results
+    :return:
+    """
+    if not print_performance_results and not plot_value_over_time:
+        log.error(f"Nothing to do: print_performance_results[{print_performance_results}], plot_value_over_time[{plot_value_over_time}]")
+        return
+
+    # simulate strategy
+    strategy_result_portfolio: SingleTickerPortfolio = _simulate(mk_data, strategy, subset_data_length)
+
+    # use results
+    if print_performance_results:
+        performance = get_performance_statistics(strategy_result_portfolio, mk_data.start_date, mk_data.end_date)
+        formatted_performance_data = json.dumps(performance, indent=4)
+        log.info(f"{formatted_performance_data}")
+    if plot_value_over_time:
+        plot_strategy_vs_market_performance(mk_data, strategy_result_portfolio)
+
+
+def _simulate(mk_data: MkData, strategy: IStrategy, subset_data_length) -> SingleTickerPortfolio:
     """
     Runs given strategy on the appropriate simulator, using self.mkdata
     :param mk_data: market data to use for simulations
