@@ -4,6 +4,7 @@ import time
 from resources import config
 from src.app_config import app_config
 from src.constants import tickers
+from src.model.single_ticker_portfolio import SingleTickerPortfolio
 from src.strategy import strategy_factory
 from src.strategy.impl.mean_signal_strategy import MeanSignalStrategy
 from src.strategy.strategy import IStrategy
@@ -24,19 +25,29 @@ def run():
     print_results = True
     plot_results = True
     calculate_over_market_performance = True
-    simulate_strategy = True
+    simulate_strategy = False
     strategy_type = MeanSignalStrategy
     min_subset_data_length = 2  # including
-    max_subset_data_length = 7  # including
+    max_subset_data_length = 100  # including
     find_best_performance = True
+
+    if not print_results and not plot_results:
+        log.error(f"Nothing to do: print_results[{print_results}], plot_results[{plot_results}]")
+        return
 
     if simulate_strategy:
         mk_data = strategy_simulator_helper.prepare_simulation_mk_data(ticker, subset_data_length, start_date, end_date, interval)
         strategy: IStrategy = strategy_factory.get_concrete_strategy(strategy_type, ticker, subset_data_length)
 
-        # TODO 2. extract some logic from there into "print/plot_strategy_performance"
-        # TODO 3. use calculate_over_market_performance
-        strategy_simulator_helper.show_strategy_performance(mk_data, subset_data_length, strategy, print_results, plot_results)
+        # simulate strategy
+        strategy_result_portfolio: SingleTickerPortfolio = strategy_simulator_helper.simulate(mk_data, strategy, subset_data_length)
+
+        # use results
+        if print_results:
+            performance = strategy_simulator_helper.get_performance_statistics(strategy.get_name(), strategy_result_portfolio, mk_data)
+            log.info(f"{performance}")
+        if plot_results:
+            strategy_simulator_helper.plot_strategy_vs_market_performance(mk_data, strategy_result_portfolio)
 
     if find_best_performance:
         mk_data = strategy_simulator_helper.prepare_simulation_mk_data(ticker, max_subset_data_length, start_date, end_date, interval)

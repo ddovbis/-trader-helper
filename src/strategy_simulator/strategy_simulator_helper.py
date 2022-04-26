@@ -67,31 +67,6 @@ def get_strategy_over_market_performances(strategy_performances_by_subset_data_l
     return result
 
 
-def show_strategy_performance(mk_data, subset_data_length, strategy, print_performance_results, plot_value_over_time):
-    """
-    Runs simulation and outputs appropriate results based on the parameters
-    :param mk_data: market data over which should the simulation to be run
-    :param subset_data_length: how many historical mk_data entry points should be used for each transaction decision
-    :param strategy: strategy that needs to be applied to decide what type of transaction should be made for each step
-    :param print_performance_results: parameter, if enabled strategy performance results will be logged
-    :param plot_value_over_time: parameter, if enabled value over time will be plotted for both strategy results, and buy&hold results
-    :return:
-    """
-    if not print_performance_results and not plot_value_over_time:
-        log.error(f"Nothing to do: print_performance_results[{print_performance_results}], plot_value_over_time[{plot_value_over_time}]")
-        return
-
-    # simulate strategy
-    strategy_result_portfolio: SingleTickerPortfolio = simulate(mk_data, strategy, subset_data_length)
-
-    # use results
-    if print_performance_results:
-        performance = get_performance_statistics(strategy.get_name(), strategy_result_portfolio, mk_data)
-        log.info(f"{performance}")
-    if plot_value_over_time:
-        plot_strategy_vs_market_performance(mk_data, strategy_result_portfolio)
-
-
 def simulate(mk_data: MkData, strategy: IStrategy, subset_data_length) -> SingleTickerPortfolio:
     """
     Runs given strategy on the appropriate simulator
