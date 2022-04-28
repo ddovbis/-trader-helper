@@ -2,7 +2,6 @@ import logging
 import os
 
 import coloredlogs
-
 from resources import config
 
 log = logging.getLogger(__name__)

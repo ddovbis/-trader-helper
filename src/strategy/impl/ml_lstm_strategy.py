@@ -83,28 +83,28 @@ class MlLstmStrategy(IStrategy):
     def _get_model(self, date: Timestamp):
         # model date should be Dec 31 of the previous year
         model_year = int(date.year) - 1
-        model_date = f"{model_year}-12-31"
+        model_timestamp = f"{model_year}-12-31"
 
         # check if model is already in the dict
-        if model_date in self.models:
-            return self.models[model_date]
+        if model_timestamp in self.models:
+            return self.models[model_timestamp]
 
         # check if model is already computed, and load it if so
-        model_dir_name = f"model_{self.ticker}_{self.time_steps}-steps_{self.epochs}-epochs_until-{model_date}"
+        model_dir_name = f"model_{self.ticker}_{self.time_steps}-steps_{self.epochs}-epochs_until-{model_timestamp}"
         model_path = os.path.join(config.LSTM_MODELS_PATH, model_dir_name)
         if path.exists(model_path):
             self.log.info(f"Saved model found, load Model by path: {model_path}")
             model = tf.keras.models.load_model(model_path)
-            self.models[model_date] = model
+            self.models[model_timestamp] = model
             self.log.info(f"Model loaded")
             return model
 
         # compute, and save new model
         self.log.info(f"New model required, train and save model by path: {model_path}")
-        raw_model_data = av_crypto_helper.download_daily_historical_data(ticker=self.ticker, _from=None, to=model_date)
+        raw_model_data = av_crypto_helper.download_daily_historical_data(ticker=self.ticker, _from=None, to=Timestamp(model_timestamp))
         model = ml_lstm_helper.compute_model(raw_data=raw_model_data, time_steps=self.time_steps, test_data_split_pct=0, epochs=self.epochs)
         model.save(model_path)
-        self.models[model_date] = model
+        self.models[model_timestamp] = model
         self.log.info(f"Model created")
         return model
 

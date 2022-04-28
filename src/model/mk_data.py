@@ -6,7 +6,7 @@ from pandas import DataFrame
 from src.constants.mk_data_fields import MkDataFields
 from src.error.mk_data_format_error import MkDataFormatError
 from src.helper import formatter
-
+from pandas import Timestamp
 
 class MkData:
     DATA_COLUMNS_TO_DTYPES = {
@@ -18,7 +18,7 @@ class MkData:
         MkDataFields.VOLUME: numpy.int64
     }
 
-    def __init__(self, ticker: str, start_date: str, end_date: str, interval: str, data: DataFrame):
+    def __init__(self, ticker: str, start_date: Timestamp, end_date: Timestamp, interval: str, data: DataFrame):
         self.log = logging.getLogger(__name__)
         self.ticker = ticker
         self.start_date = start_date

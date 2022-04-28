@@ -24,12 +24,9 @@ log = logging.getLogger(__name__)
 # [IMPROVEMENT] make offset possible for other intervals than 1d
 def prepare_simulation_mk_data(ticker, subset_data_length, start_date, end_date, interval):
     left_offset = formatter.get_timedelta(subset_data_length - 1, interval)  # get extra data for making decision for the first entry
-    start_date_with_offset = formatter.extract_time_and_convert_to_string(start_date, config.GENERAL_DATE_FORMAT, left_offset)
+    start_date_with_offset = start_date - left_offset
 
-    right_offset = formatter.get_timedelta(1, interval)  # make sure end_date is included into data
-    end_date_with_offset = formatter.add_time_and_convert_to_string(end_date, config.GENERAL_DATE_FORMAT, right_offset)
-
-    data = av_crypto_helper.download_daily_historical_data(ticker=ticker, _from=start_date_with_offset, to=end_date_with_offset)
+    data = av_crypto_helper.download_daily_historical_data(ticker=ticker, _from=start_date_with_offset, to=end_date)
     return MkData(ticker, start_date, end_date, interval, data)
 
 

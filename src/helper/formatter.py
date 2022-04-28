@@ -3,13 +3,16 @@ from datetime import datetime, timedelta
 from pandas import Timestamp
 
 
-def obj_to_str(obj, exclude: list = []):
+def obj_to_str(obj, exclude: list = None):
     """
     Transforms object to a string representation
     :param obj: object to transform
     :param exclude: a list of parameters that should be excluded from the result
     :return: string representation of the object
     """
+    if exclude is None:
+        exclude = []
+
     obj_var_values = [f"{name}={attr}" for name, attr in vars(obj).items() if not name.startswith("__") and name not in exclude]
     return f"{type(obj).__name__}({', '.join(obj_var_values)})"
 

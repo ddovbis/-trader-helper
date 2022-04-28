@@ -9,16 +9,15 @@ from pandas import DataFrame, Timestamp, Timedelta
 from requests import Response
 
 from resources import config
-from resources.config import ALPHA_VANTAGE_BASE_URL, ALPHA_VANTAGE_API_KEY, GENERAL_DATE_FORMAT
+from resources.config import ALPHA_VANTAGE_BASE_URL, ALPHA_VANTAGE_API_KEY
 from src.constants.mk_data_fields import MkDataFields
 from src.error.mk_data_format_error import MkDataFormatError
 from src.error.mk_data_request_error import MkDataRequestError
-from src.helper import formatter
 
 log = logging.getLogger(__name__)
 
 
-def get_historical_price(ticker, asof):
+def get_historical_price(ticker, asof: Timestamp):
     """
     Gets historical price for the provided date
     If provided date has no data (e.g., because it's a bank holiday), the method will return the most recent price prior to the provided date
@@ -27,9 +26,10 @@ def get_historical_price(ticker, asof):
     :return: last available price of the provided date, or the most recent one prior to this date
     """
     left_offset = timedelta(days=5)  # 5d to account for any bank holidays/weekends
-    start_date = formatter.extract_time_and_convert_to_string(asof, GENERAL_DATE_FORMAT, left_offset)
+    _from = asof - left_offset
+    to = asof
 
-    data = download_daily_historical_data(ticker, _from=start_date, to=asof)
+    data = download_daily_historical_data(ticker, _from=_from, to=to)
     if data.empty:
         raise MkDataFormatError(f"Got empty market data while retrieving last historical price for ticker[{ticker}] as of: {asof}")
 
@@ -37,7 +37,7 @@ def get_historical_price(ticker, asof):
     return data[MkDataFields.CLOSE].iloc[-1]
 
 
-def download_daily_historical_data(ticker, _from: str = None, to: str = None) -> DataFrame:
+def download_daily_historical_data(ticker, _from: Timestamp = None, to: Timestamp = None) -> DataFrame:
     """
     :param ticker: ticker (e.g., symbol) for which the data should be downloaded
     :param _from: the earliest date for which the data should be included (included into result) - format "YYYY-mm-dd"
@@ -47,18 +47,14 @@ def download_daily_historical_data(ticker, _from: str = None, to: str = None) ->
 
     Note: to take into account that present day is not returned
     """
-    start_date = Timestamp(_from) if _from else None
-    end_date = Timestamp(to) if to else None
-    end_date_including = (end_date - pd.Timedelta(days=1)) if end_date else None  # last date to be included into the result
-
-    output_size = _get_req_output_size(start_date, end_date_including)
+    output_size = _get_req_output_size(_from, to)
     params = _get_av_daily_historical_data_params(ticker, output_size)
 
     response_text = _request_mk_data_with_retry(params)
 
     df = _av_csv_text_to_df(response_text)
-    _validate_timeframe(df, start_date, end_date_including)
-    df = _get_slice(df, start_date, end_date_including)
+    _validate_timeframe(df, _from, to)
+    df = _get_slice(df, _from, to)
 
     return df
 
