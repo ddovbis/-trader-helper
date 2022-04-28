@@ -134,7 +134,7 @@ def plot_performance_of_data_lengths(strategy_performances_by_subset_data_length
     plt.show()
 
 
-def plot_strategy_vs_market_performance(mk_data: MkData, strategy_portfolio: SingleTickerPortfolio):
+def plot_strategy_performance(mk_data: MkData, strategy_portfolio: SingleTickerPortfolio, mark_buy_sell, plot_market_performance):
     """
     Computes strategy portfolio value over time
     Extracts the data points when BUY/SELL transactions took place
@@ -143,15 +143,15 @@ def plot_strategy_vs_market_performance(mk_data: MkData, strategy_portfolio: Sin
 
     :param mk_data: market data for the period when portfolio had been trading
     :param strategy_portfolio: portfolio used to trade using the strategy
+    :param mark_buy_sell: whether buy and sell data points should be marked on the plot
+    :param plot_market_performance: whether buy&hold value over time should be computed and added to the plot
     :return: does not return anything but pops up a new window with the plot
     """
 
     # make sure there is no offset data
     data = mk_data.data.truncate(before=Timestamp(mk_data.start_date), after=Timestamp(mk_data.end_date))
 
-    # calculate value over time for both
     portfolio_value_over_time = _get_portfolio_value_over_time(data, strategy_portfolio)
-    buy_and_hold_value_over_time = _get_buy_and_hold_value_over_time(data, strategy_portfolio.initial_cash)
 
     # extract buy/sell data points to highlight them
     buy_data_points = _get_data_points_by_transaction_type(strategy_portfolio.transactions, portfolio_value_over_time, TransactionType.BUY)
@@ -159,13 +159,17 @@ def plot_strategy_vs_market_performance(mk_data: MkData, strategy_portfolio: Sin
 
     # plot strategy portfolio data
     plt.plot(portfolio_value_over_time.keys(), portfolio_value_over_time.values(), color='skyblue', label=config.STRATEGY_SIMULATION_STRATEGY_PORTFOLIO_LABEL)
-    plt.plot(buy_data_points.keys(), buy_data_points.values(), marker=".", color='red', linestyle='None', markersize=config.STRATEGY_SIMULATION_MARKER_SIZE,
-             label=config.STRATEGY_SIMULATION_BUY_MARK_LABEL)
-    plt.plot(sell_data_points.keys(), sell_data_points.values(), marker=".", color='green', linestyle='None', markersize=config.STRATEGY_SIMULATION_MARKER_SIZE,
-             label=config.STRATEGY_SIMULATION_SELL_MARK_LABEL)
 
-    # plot buy and hold data
-    plt.plot(buy_and_hold_value_over_time.keys(), buy_and_hold_value_over_time.values(), label=config.STRATEGY_SIMULATION_BUY_AND_HOLD_PORTFOLIO_LABEL)
+    if mark_buy_sell:
+        plt.plot(buy_data_points.keys(), buy_data_points.values(), marker=".", color='green', linestyle='None', markersize=config.STRATEGY_SIMULATION_MARKER_SIZE,
+                 label=config.STRATEGY_SIMULATION_BUY_MARK_LABEL)
+        plt.plot(sell_data_points.keys(), sell_data_points.values(), marker=".", color='red', linestyle='None', markersize=config.STRATEGY_SIMULATION_MARKER_SIZE,
+                 label=config.STRATEGY_SIMULATION_SELL_MARK_LABEL)
+
+    if plot_market_performance:
+        # calculate and add buy&hold data to plot
+        buy_and_hold_value_over_time = _get_buy_and_hold_value_over_time(data, strategy_portfolio.initial_cash)
+        plt.plot(buy_and_hold_value_over_time.keys(), buy_and_hold_value_over_time.values(), label=config.STRATEGY_SIMULATION_BUY_AND_HOLD_PORTFOLIO_LABEL)
 
     # plot explanations
     plt.xlabel(config.STRATEGY_SIMULATION_X_LABEL)

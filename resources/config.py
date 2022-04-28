@@ -28,6 +28,7 @@ SIMULATOR_INITIAL_CASH = 100
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 # strategy simulation plot configs
+MARK_BUY_AND_SELL = True
 STRATEGY_SIMULATION_X_LABEL = "Timp"
 STRATEGY_SIMULATION_Y_LABEL = "Valoarea portofoliului de investiții"
 STRATEGY_SIMULATION_MARKER_SIZE = 5

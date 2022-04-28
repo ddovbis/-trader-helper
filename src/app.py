@@ -25,7 +25,7 @@ def run(params):
             performance = strategy_simulator_helper.get_performance_statistics(strategy.get_name(), strategy_result_portfolio, mk_data)
             log.info(f"{performance}")
         if params.plot_results:
-            strategy_simulator_helper.plot_strategy_vs_market_performance(mk_data, strategy_result_portfolio)
+            strategy_simulator_helper.plot_strategy_performance(mk_data, strategy_result_portfolio, config.MARK_BUY_AND_SELL, params.calculate_over_market_performance)
 
     if params.find_best_performance:
         mk_data = strategy_simulator_helper.prepare_simulation_mk_data(params.ticker, params.max_subset_data_length, params.start_date, params.end_date, params.interval)
