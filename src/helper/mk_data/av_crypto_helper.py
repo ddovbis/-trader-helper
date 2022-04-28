@@ -27,7 +27,7 @@ def get_historical_price(ticker, asof):
     :return: last available price of the provided date, or the most recent one prior to this date
     """
     left_offset = timedelta(days=5)  # 5d to account for any bank holidays/weekends
-    start_date = formatter.extract_time_from_str_date(asof, GENERAL_DATE_FORMAT, left_offset)
+    start_date = formatter.extract_time_and_convert_to_string(asof, GENERAL_DATE_FORMAT, left_offset)
 
     data = download_daily_historical_data(ticker, _from=start_date, to=asof)
     if data.empty:

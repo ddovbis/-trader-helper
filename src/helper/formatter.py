@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 
+from pandas import Timestamp
+
 
 def obj_to_str(obj, exclude: list = []):
     """
@@ -19,35 +21,30 @@ def get_timedelta(units, interval):
         raise NotImplementedError()
 
 
-def add_time_to_str_date(date: str, date_format: str, to_add: timedelta) -> str:
+def add_time_and_convert_to_string(timestamp: Timestamp, date_format: str, to_add: timedelta) -> str:
     """
-    Converts string date into a date format
     Adds provided timedelta to the date
-    Converts resulted date back into string
+    Converts resulted date into string
 
-    :param date: original date
-    :param date_format: format of the original date, also used for the return format, e.g. "YYYY-MM-DD"
+    :param timestamp: original timestamp
+    :param date_format: format of the date to return, e.g. "YYYY-MM-DD"
     :param to_add: timedelta to add to the date
     :return: original date + timedelta
     """
-    date = datetime.strptime(date, date_format)
-    modified_date = date + to_add
+    modified_date = timestamp + to_add
     return datetime.strftime(modified_date, date_format)
 
 
-def extract_time_from_str_date(date: str, date_format: str, to_extract: timedelta) -> str:
+def extract_time_and_convert_to_string(date: Timestamp, date_format: str, to_extract: timedelta) -> str:
     """
-    Converts string date into a date format
     Extracts provided timedelta from the date
-    Converts resulted date back into string
+    Converts resulted date into string
 
     :param date: original date
-    :param date_format: format of the
-    original date, also used for the return format, e.g. "YYYY-MM-DD"
+    :param date_format: format of the date to return, e.g. "YYYY-MM-DD"
     :param to_extract: timedelta to extract from the date
     :return: original date - timedelta
     """
-    date = datetime.strptime(date, date_format)
     modified_date = date - to_extract
     return datetime.strftime(modified_date, date_format)
 

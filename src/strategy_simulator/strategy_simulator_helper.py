@@ -24,10 +24,10 @@ log = logging.getLogger(__name__)
 # [IMPROVEMENT] make offset possible for other intervals than 1d
 def prepare_simulation_mk_data(ticker, subset_data_length, start_date, end_date, interval):
     left_offset = formatter.get_timedelta(subset_data_length - 1, interval)  # get extra data for making decision for the first entry
-    start_date_with_offset = formatter.extract_time_from_str_date(start_date, config.GENERAL_DATE_FORMAT, left_offset)
+    start_date_with_offset = formatter.extract_time_and_convert_to_string(start_date, config.GENERAL_DATE_FORMAT, left_offset)
 
     right_offset = formatter.get_timedelta(1, interval)  # make sure end_date is included into data
-    end_date_with_offset = formatter.add_time_to_str_date(end_date, config.GENERAL_DATE_FORMAT, right_offset)
+    end_date_with_offset = formatter.add_time_and_convert_to_string(end_date, config.GENERAL_DATE_FORMAT, right_offset)
 
     data = av_crypto_helper.download_daily_historical_data(ticker=ticker, _from=start_date_with_offset, to=end_date_with_offset)
     return MkData(ticker, start_date, end_date, interval, data)
@@ -40,7 +40,7 @@ def get_strategy_performances_by_subset_data_length(min_subset_data_length, max_
     for subset_data_length in range(min_subset_data_length, max_subset_data_length + 1):
         # truncate mk_data up to subset_data_length
         left_offset = timedelta(days=subset_data_length - 1)
-        start_date_with_offset = formatter.extract_time_from_str_date(mk_data.start_date, config.GENERAL_DATE_FORMAT, left_offset)
+        start_date_with_offset = formatter.extract_time_and_convert_to_string(mk_data.start_date, config.GENERAL_DATE_FORMAT, left_offset)
         mk_data.data = orig_data.truncate(before=Timestamp(start_date_with_offset))
 
         # get performance for this data length
