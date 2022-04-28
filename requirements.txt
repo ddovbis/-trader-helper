@@ -1,0 +1,10 @@
+coloredlogs==15.0.1
+keras==2.8.0
+matplotlib==3.4.3
+numpy==1.22.3
+pandas==1.0.5
+requests==2.24.0
+resources==0.0.1
+scikit_learn==1.0.2
+TA_Lib==0.4.24
+tensorflow==2.8.0
